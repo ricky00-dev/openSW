@@ -4,6 +4,17 @@ import pandas as pd
 import plotly.express as px
 import pydeck as pdk
 from datetime import datetime
+def deg_to_direction(deg: float) -> str:
+    """풍향(각도)을 16방위 문자열로 변환"""
+    dirs = [
+        "N", "NNE", "NE", "ENE",
+        "E", "ESE", "SE", "SSE",
+        "S", "SSW", "SW", "WSW",
+        "W", "WNW", "NW", "NNW",
+    ]
+    idx = int((deg / 22.5) + 0.5) % 16
+    return dirs[idx]
+
 
 # -------------------------------------------------------------------
 # 페이지 설정
@@ -33,6 +44,10 @@ default_cities = [
     "Seoul", "Busan", "Tokyo", "New York", "London",
     "Paris", "Sydney", "Beijing", "Los Angeles", "Singapore"
 ]
+# ⭐ Streamlit 세션에 즐겨찾기 리스트 저장
+if "favorites" not in st.session_state:
+    # 처음에는 기본으로 Seoul 하나 넣어두기 (원하면 빈 리스트로 해도 됨)
+    st.session_state["favorites"] = ["Seoul"]
 
 # 인기 도시 선택 (드롭다운)
 selected_city = st.sidebar.selectbox("Select a City", default_cities, index=0)
@@ -42,6 +57,33 @@ custom_city = st.sidebar.text_input("Or search another city", selected_city)
 
 # 최종적으로 선택된 도시
 city = custom_city
+
+# ⭐ 즐겨찾기 영역
+st.sidebar.markdown("---")
+st.sidebar.subheader("⭐ 즐겨찾기")
+
+favorites = st.session_state["favorites"]
+
+# 1) 현재 도시 즐겨찾기에 추가
+if st.sidebar.button("현재 도시 즐겨찾기에 추가"):
+    if custom_city and custom_city not in favorites:
+        favorites.append(custom_city)
+        st.sidebar.success(f"'{custom_city}' 를 즐겨찾기에 추가했습니다.")
+    elif custom_city in favorites:
+        st.sidebar.info("이미 즐겨찾기에 있는 도시입니다.")
+
+# 2) 즐겨찾기에서 선택해 바로 보기
+if favorites:
+    fav_selected = st.sidebar.selectbox(
+        "즐겨찾기에서 도시 선택", favorites, key="favorite_select"
+    )
+    if st.sidebar.button("이 즐겨찾기 도시로 보기"):
+        city = fav_selected
+        st.sidebar.success(f"현재 도시를 '{fav_selected}'로 변경했습니다.")
+else:
+    st.sidebar.caption("아직 즐겨찾기 도시가 없습니다. 위 버튼으로 추가해 보세요.")
+
+st.sidebar.markdown("---")
 
 # 단위 선택
 unit_choice = st.sidebar.radio("Select Unit", ["Celsius (°C)", "Fahrenheit (°F)"])
@@ -105,7 +147,7 @@ if city:
     # 여기까지 왔으면 둘 다 정상
     st.subheader(f"📍 {data_current['name']}의 현재 날씨")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         icon_url = f"https://openweathermap.org/img/wn/{data_current['weather'][0]['icon']}@2x.png"
         st.image(icon_url, width=80, caption=f"{data_current['weather'][0]['description']}")
@@ -115,6 +157,21 @@ if city:
     with col3:
         st.metric("습도", f"{data_current['main']['humidity']}%")
         st.write(f"기압: {data_current['main']['pressure']} hPa")
+    with col4:
+    # 풍속
+     wind_speed = data_current.get("wind", {}).get("speed", None)
+    wind_deg = data_current.get("wind", {}).get("deg", None)
+    visibility = data_current.get("visibility", None)  # m 단위
+    clouds = data_current.get("clouds", {}).get("all", None)  # %
+
+    if wind_speed is not None:
+        st.write(f"풍속: {wind_speed:.1f} {wind_speed_unit}")
+    if wind_deg is not None:
+        st.write(f"풍향: {deg_to_direction(wind_deg)} ({wind_deg}°)")
+    if visibility is not None:
+        st.write(f"시정: {visibility/1000:.1f} km")
+    if clouds is not None:
+        st.write(f"구름량: {clouds}%")
 
     st.divider()
 
