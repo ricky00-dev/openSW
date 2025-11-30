@@ -56,29 +56,32 @@ wind_speed_unit = "m/s" if units == "metric" else "mph"
 def fetch_weather(city_name, units):
     """현재 날씨 데이터를 API에서 가져옵니다."""
     url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={API_KEY}&units={units}"
-    try:
-        res = requests.get(url)
-        res.raise_for_status()  # 200 OK가 아니면 에러 발생
-        return res.json()
-    except requests.exceptions.HTTPError as err:
-        st.error(f"❌ API 호출 실패 (도시: {city_name}): {err}")
-        return None
-    except requests.exceptions.RequestException as e:
-        st.error(f"❌ 네트워크 연결 오류: {e}")
+    res = requests.get(url)
+
+    # ❶ 없는 도시
+    if res.status_code == 404:
         return None
 
+    # ❷ 그 외 API 실패
+    if res.status_code != 200:
+        return None
+
+    # ❸ 정상일 때만
+    return res.json()
 
 @st.cache_data(ttl=600)
 def fetch_forecast(city_name, units):
-    """5일간 3시간 간격 예보 데이터를 API에서 가져옵니다."""
     url = f"https://api.openweathermap.org/data/2.5/forecast?q={city_name}&appid={API_KEY}&units={units}"
-    try:
-        res = requests.get(url)
-        res.raise_for_status()
-        return res.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"❌ (Forecast) API 호출 실패: {e}")
+    res = requests.get(url)
+
+    if res.status_code == 404:
         return None
+
+    if res.status_code != 200:
+        return None
+
+    return res.json()
+
 
 # -------------------------------------------------------------------
 # 4. 메인 화면 출력
@@ -89,80 +92,98 @@ if city:
     data_current = fetch_weather(city, units)
     data_forecast = fetch_forecast(city, units)
 
-    if data_current and data_forecast:
-        st.subheader(f"📍 {data_current['name']}의 현재 날씨")
+     # ✅ 현재 날씨 데이터 못 가져온 경우 (없는 도시 포함)
+    if not data_current:
+        st.error(f"❌ '{city}' 는(은) 존재하지 않는 도시입니다. 도시 이름을 다시 확인해주세요.")
+        st.stop()
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            icon_url = f"https://openweathermap.org/img/wn/{data_current['weather'][0]['icon']}@2x.png"
-            st.image(icon_url, width=80, caption=f"{data_current['weather'][0]['description']}")
-        with col2:
-            st.metric("기온", f"{data_current['main']['temp']}{unit_symbol}")
-            st.write(f"체감온도: {data_current['main']['feels_like']}{unit_symbol}")
-        with col3:
-            st.metric("습도", f"{data_current['main']['humidity']}%")
-            st.write(f"기압: {data_current['main']['pressure']} hPa")
+    # ✅ 예보 데이터만 실패한 경우
+    if not data_forecast:
+        st.error("❌ 예보 데이터를 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.")
+        st.stop()
 
-        st.divider()
+    # 여기까지 왔으면 둘 다 정상
+    st.subheader(f"📍 {data_current['name']}의 현재 날씨")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        icon_url = f"https://openweathermap.org/img/wn/{data_current['weather'][0]['icon']}@2x.png"
+        st.image(icon_url, width=80, caption=f"{data_current['weather'][0]['description']}")
+    with col2:
+        st.metric("기온", f"{data_current['main']['temp']}{unit_symbol}")
+        st.write(f"체감온도: {data_current['main']['feels_like']}{unit_symbol}")
+    with col3:
+        st.metric("습도", f"{data_current['main']['humidity']}%")
+        st.write(f"기압: {data_current['main']['pressure']} hPa")
 
-        st.subheader("🌡 3시간 간격 기온 예보 (Plotly)")
-        try:
-            forecast_data = [(item['dt_txt'], item['main']['temp']) for item in data_forecast['list']]
-            df = pd.DataFrame(forecast_data, columns=['Time', 'Temperature'])
-            df['Time'] = pd.to_datetime(df['Time'])
-            fig = px.line(df, x='Time', y='Temperature',
-                          title=f"{data_current['name']} 기온 변화",
-                          labels={'Time': '시간', 'Temperature': f'기온 ({unit_symbol})'})
-            fig.update_traces(mode='lines+markers', line_shape='spline')
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"차트 생성 중 오류 발생: {e}")
+    st.divider()
 
-        st.divider()
+    st.subheader("🌡 3시간 간격 기온 예보 (Plotly)")
+    try:
+        forecast_data = [(item['dt_txt'], item['main']['temp']) for item in data_forecast['list']]
+        df = pd.DataFrame(forecast_data, columns=['Time', 'Temperature'])
+        df['Time'] = pd.to_datetime(df['Time'])
+        fig = px.line(df, x='Time', y='Temperature',
+                        title=f"{data_current['name']} 기온 변화",
+                        labels={'Time': '시간', 'Temperature': f'기온 ({unit_symbol})'})
+        fig.update_traces(mode='lines+markers', line_shape='spline')
+        st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("🗺 도시 위치 (Pydeck)")
+        # --- CSV 다운로드 버튼 추가 ---
+        csv = df.to_csv(index=False).encode('utf-8')
 
-        mapbox_key = None
-        try:
-            # [api_keys] "서랍 안"에서 Mapbox 키를 조용히 읽어옵니다.
-            mapbox_key = st.secrets["api_keys"]["MAPBOX_API_KEY"]
-        except (KeyError, FileNotFoundError):
-            # 키가 없으면 mapbox_key는 None으로 유지됩니다.
-            pass
+        st.download_button(
+            label="📥 3시간 예보 CSV 다운로드",
+            data=csv,
+            file_name=f"{data_current['name']}_forecast.csv",
+            mime="text/csv"
+        )
+    except Exception as e:
+        st.error(f"차트 생성 중 오류 발생: {e}")
 
-        try:
-            lat = data_current['coord']['lat']
-            lon = data_current['coord']['lon']
+    st.divider()
 
-            layer = pdk.Layer(
-                'ScatterplotLayer',
-                data=pd.DataFrame({'lat': [lat], 'lon': [lon]}),
-                get_position='[lon, lat]',
-                get_color='[200, 30, 0, 160]',  # RGBA (빨간색)
-                get_radius=1000,
+    st.subheader("🗺 도시 위치 (Pydeck)")
+
+    mapbox_key = None
+    try:
+        # [api_keys] "서랍 안"에서 Mapbox 키를 조용히 읽어옵니다.
+        mapbox_key = st.secrets["api_keys"]["MAPBOX_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        # 키가 없으면 mapbox_key는 None으로 유지됩니다.
+        pass
+
+    try:
+        lat = data_current['coord']['lat']
+        lon = data_current['coord']['lon']
+
+        layer = pdk.Layer(
+            'ScatterplotLayer',
+            data=pd.DataFrame({'lat': [lat], 'lon': [lon]}),
+            get_position='[lon, lat]',
+            get_color='[200, 30, 0, 160]',  # RGBA (빨간색)
+            get_radius=1000,
+        )
+
+        view_state = pdk.ViewState(
+            latitude=lat,
+            longitude=lon,
+            zoom=10,
+            pitch=50,
+        )
+
+        if mapbox_key:
+            r = pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                map_style='mapbox://styles/mapbox/light-v9',
+                api_keys={'mapbox': mapbox_key},
+                tooltip={"text": f"{data_current['name']}\nLat: {lat}, Lon: {lon}"}
             )
-
-            view_state = pdk.ViewState(
-                latitude=lat,
-                longitude=lon,
-                zoom=10,
-                pitch=50,
-            )
-
-            if mapbox_key:
-                r = pdk.Deck(
-                    layers=[layer],
-                    initial_view_state=view_state,
-                    map_style='mapbox://styles/mapbox/light-v9',
-                    api_keys={'mapbox': mapbox_key},
-                    tooltip={"text": f"{data_current['name']}\nLat: {lat}, Lon: {lon}"}
-                )
-                st.pydeck_chart(r)
-            else:
-                st.warning("🗺️ Mapbox API 키가 .streamlit/secrets.toml에 설정되지 않아 지도를 표시할 수 없습니다.")
-        except Exception as e:
-            st.error(f"Pydeck 맵 생성 중 오류 발생: {e}")
-    else:
-        st.error(f"❌ 도시 '{city}'의 날씨 정보를 불러오는 데 실패했습니다. 도시 이름을 확인하거나 다시 시도해주세요.")
+            st.pydeck_chart(r)
+        else:
+            st.warning("🗺️ Mapbox API 키가 .streamlit/secrets.toml에 설정되지 않아 지도를 표시할 수 없습니다.")
+    except Exception as e:
+        st.error(f"Pydeck 맵 생성 중 오류 발생: {e}")
 else:
     st.info("왼쪽 사이드바에서 도시를 선택하거나 직접 검색해주세요 🌏")
