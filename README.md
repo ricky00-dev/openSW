@@ -13,6 +13,10 @@ Streamlit 기반의 날씨·대기질 대시보드입니다.
 ## 설정
 1) 가상환경 생성 후 패키지 설치:
 ```
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1   # PowerShell
+# source .venv/bin/activate    # macOS/Linux
+
 pip install -r requirements.txt
 ```
 
