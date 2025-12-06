@@ -526,7 +526,11 @@ with tab_map:
             st.warning("경로 좌표를 해석할 수 없습니다. '위도,경도' 형태로 입력해주세요.")
 
     view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=9, pitch=45)
-    st.pydeck_chart(pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{city}"}))
+    chart_key = f"map-{city_name}-{lat:.4f}-{lon:.4f}"
+    st.pydeck_chart(
+        pdk.Deck(layers=layers, initial_view_state=view_state, tooltip={"text": "{city}"}),
+        key=chart_key,
+    )
 
     st.caption("경로 레이어는 단순 시각화용이며 실제 경로 탐색 엔진은 아닙니다.")
 
