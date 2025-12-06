@@ -7,6 +7,10 @@ import plotly.express as px
 import pydeck as pdk
 import requests
 import streamlit as st
+try:
+    from streamlit_geolocation import geolocation
+except ImportError:
+    geolocation = None
 
 
 # -------------------------------------------------------------------
@@ -250,6 +254,17 @@ if use_my_location:
     else:
         st.sidebar.error("위치를 감지할 수 없습니다.")
 
+# 브라우저 위치 권한 (더 정확)
+browser_location: Optional[Dict[str, float]] = None
+if geolocation:
+    st.sidebar.markdown("브라우저 위치 권한")
+    coords = geolocation("브라우저 위치 가져오기", key="browser_geo")
+    if coords and coords.get("latitude") and coords.get("longitude"):
+        browser_location = coords
+        st.sidebar.success(f"감지됨: {coords['latitude']:.4f}, {coords['longitude']:.4f}")
+else:
+    st.sidebar.caption("브라우저 위치 사용을 위해 'streamlit-geolocation' 패키지가 필요합니다.")
+
 st.sidebar.markdown("---")
 st.sidebar.subheader("알림")
 rain_threshold = st.sidebar.slider("강수확률 경고 기준 (%)", 0, 100, 80, step=5)
@@ -271,8 +286,16 @@ route_to = st.sidebar.text_input("도착지 위도,경도", "")
 # Data retrieval
 # -------------------------------------------------------------------
 api_key = get_api_key()
-lat_override = location_override["lat"] if location_override else None
-lon_override = location_override["lon"] if location_override else None
+lat_override = (
+    browser_location["latitude"]
+    if browser_location
+    else (location_override["lat"] if location_override else None)
+)
+lon_override = (
+    browser_location["longitude"]
+    if browser_location
+    else (location_override["lon"] if location_override else None)
+)
 
 current_data: Optional[Dict[str, Any]] = None
 forecast_data: Optional[Dict[str, Any]] = None

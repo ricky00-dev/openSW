@@ -34,6 +34,7 @@ streamlit run streamlit_app.py
 
 ## 참고
 - IP 기반 위치는 `ipinfo.io`를 사용합니다. 더 안정적인 사용을 원하면 해당 서비스의 개인 키를 설정하세요.
+- 브라우저 위치 권한을 사용하려면 `streamlit-geolocation`이 설치되어 있어야 합니다(`requirements.txt`에 포함).
 - 경로 오버레이는 두 좌표를 선으로 잇는 시각화만 제공하며, 실제 경로 탐색 엔진이 아닙니다.
 - OpenWeather 키가 없으면 대기질은 표시되지 않고, Open-Meteo를 통해 날씨 정보만 제공합니다.
 
