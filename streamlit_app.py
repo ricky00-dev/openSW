@@ -242,28 +242,38 @@ if refresh:
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("위치")
-use_my_location = st.sidebar.button("내 위치 사용 (IP 기반)")
+st.sidebar.caption("IP 기반 위치는 오차가 크니 브라우저 위치(권한 필요)를 권장합니다.")
+
+# 1) IP 기반
+use_my_location_ip = st.sidebar.button("내 위치 (IP 기반)")
 location_override: Optional[Dict[str, Any]] = None
-if use_my_location:
+if use_my_location_ip:
     location_override = detect_location_by_ip()
     if location_override:
         city = location_override.get("city") or city
         st.sidebar.success(
-            f"감지됨: {location_override.get('city')}, {location_override.get('region')} ({location_override.get('country')})"
+            f"감지됨(IP): {location_override.get('city')}, {location_override.get('region')} ({location_override.get('country')})"
         )
     else:
-        st.sidebar.error("위치를 감지할 수 없습니다.")
+        st.sidebar.error("IP로 위치를 감지할 수 없습니다.")
 
-# 브라우저 위치 권한 (더 정확)
+# 2) 브라우저 위치 권한 (정확)
 browser_location: Optional[Dict[str, float]] = None
 if geolocation:
-    st.sidebar.markdown("브라우저 위치 권한")
+    st.sidebar.markdown("브라우저 위치 (권한 허용 필요)")
     coords = geolocation("브라우저 위치 가져오기", key="browser_geo")
     if coords and coords.get("latitude") and coords.get("longitude"):
         browser_location = coords
-        st.sidebar.success(f"감지됨: {coords['latitude']:.4f}, {coords['longitude']:.4f}")
+        st.sidebar.success(f"감지됨(브라우저): {coords['latitude']:.4f}, {coords['longitude']:.4f}")
+    else:
+        st.sidebar.info("버튼을 누르고 브라우저 위치 권한을 허용해주세요.")
 else:
     st.sidebar.caption("브라우저 위치 사용을 위해 'streamlit-geolocation' 패키지가 필요합니다.")
+
+# 3) 수동 좌표 입력 (최우선)
+st.sidebar.markdown("수동 좌표 입력")
+manual_lat = st.sidebar.text_input("위도", "")
+manual_lon = st.sidebar.text_input("경도", "")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("알림")
@@ -286,16 +296,21 @@ route_to = st.sidebar.text_input("도착지 위도,경도", "")
 # Data retrieval
 # -------------------------------------------------------------------
 api_key = get_api_key()
-lat_override = (
-    browser_location["latitude"]
-    if browser_location
-    else (location_override["lat"] if location_override else None)
-)
-lon_override = (
-    browser_location["longitude"]
-    if browser_location
-    else (location_override["lon"] if location_override else None)
-)
+lat_override = None
+lon_override = None
+
+try:
+    if manual_lat and manual_lon:
+        lat_override = float(manual_lat)
+        lon_override = float(manual_lon)
+    elif browser_location:
+        lat_override = browser_location["latitude"]
+        lon_override = browser_location["longitude"]
+    elif location_override:
+        lat_override = location_override["lat"]
+        lon_override = location_override["lon"]
+except Exception:
+    st.sidebar.warning("좌표 해석에 실패했습니다. 숫자 위도/경도를 입력하세요.")
 
 current_data: Optional[Dict[str, Any]] = None
 forecast_data: Optional[Dict[str, Any]] = None
