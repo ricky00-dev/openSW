@@ -19,8 +19,8 @@ pip install -r requirements.txt
 2) `.streamlit/secrets.toml`에 키 추가:
 ```
 [api_keys]
-openweather = "YOUR_OPENWEATHER_KEY"
-MAPBOX_API_KEY = "YOUR_MAPBOX_KEY"
+openweather = "YOUR_OPENWEATHER_KEY"   # 필수
+MAPBOX_API_KEY = "YOUR_MAPBOX_KEY"     # 선택: 내 Mapbox 토큰/스타일을 쓸 때만 설정
 ```
 
 3) 실행:
@@ -43,7 +43,7 @@ streamlit run streamlit_app.py
      ```
      [api_keys]
      openweather = "YOUR_OPENWEATHER_KEY"   # 필수
-     MAPBOX_API_KEY = "YOUR_MAPBOX_KEY"     # 선택 (지도 스타일용)
+     MAPBOX_API_KEY = "YOUR_MAPBOX_KEY"     # 선택: 내 Mapbox 토큰/스타일을 쓸 때만 설정
      ```
    - OpenWeather 키가 없으면 대기질 패널이 비활성화되고, Open-Meteo로 날씨만 표시됩니다.
 
